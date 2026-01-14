@@ -1,0 +1,8 @@
+opencv-python
+pytesseract
+google-generativeai
+python-dotenv
+numpy
+jupyter
+ipykernel
+
