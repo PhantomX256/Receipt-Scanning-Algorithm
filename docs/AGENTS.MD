@@ -10,8 +10,8 @@ This project is a Python-based receipt scanning pipeline. It takes an input imag
 - **Computer Vision**: OpenCV (`cv2`)
 - **OCR Engine**: Tesseract (`pytesseract`)
   - *Note*: Tesseract binary must be installed on the system.
-- **LLM**: Google Gemini (`google-generativeai`)
-  - Model: `gemini-1.5-flash` (or `gemini-3-flash` if available/configured).
+- **LLM**: Google Gemini (`google-genai`)
+  - Model: `gemini-3-flash` (fallback: `gemini-1.5-flash` if 3.x not available).
 - **Environment**: VS Code / Jupyter Notebook
 - **OS**: Windows
 
@@ -22,11 +22,13 @@ The project is modularized into specific functional files:
 ### `preprocess.py`
 - **Purpose**: Prepare the image for OCR.
 - **Function**: `run_preprocess(input_image)`
-- **Logic**:
-  - Load image (path or array).
+- **Logic (fast path)**:
+  - Load image (path or array) and optionally cap max dimension to control size/performance.
   - Convert to Grayscale.
-  - Apply Gaussian Blur (noise reduction).
-  - Apply Adaptive Thresholding (binarization).
+  - Apply mild Gaussian Blur (noise reduction).
+  - Optionally apply CLAHE (local contrast) when lighting is uneven.
+  - Apply Adaptive Thresholding (binarization), invert if needed for dark text on light background.
+  - Apply light morphological clean-up (e.g., open/close) to remove specks and join thin strokes.
   - Return: The processed image (numpy array).
 
 ### `ocr.py`
@@ -54,10 +56,20 @@ The project is modularized into specific functional files:
   1. Define Image Path.
   2. Call `run_preprocess`.
   3. Call `run_ocr`.
-  4. Call `extract_receipt_info`.
-  5. Display/Save results.
+  4. Call `extract_receipt_info` (default model `gemini-3-flash`).
+  5. Display/Save results as `outputs/<image_basename>.json`.
 
-## 4. Output Data Model
+## 4. Common Utilities
+
+### `logger.py`
+- **Purpose**: Lightweight logging utility.
+- **Usage**:
+  - Instantiate with the source filename (string) at the top of each module.
+  - Methods (e.g., `log`, `error`) accept message and function name; prints to stdout.
+  - Output format: `timestamp\t-\t{message}\t-\t{function}@{file}`.
+  - Additional log levels/methods can be added later as needed.
+
+## 5. Output Data Model
 The output must be a JSON object with this exact structure:
 
 ```json
@@ -76,15 +88,14 @@ The output must be a JSON object with this exact structure:
 }
 ```
 
-## 5. Configuration
+## 6. Configuration
 - **Environment Variables** (`.env`):
   - `GEMINI_API_KEY`: API key for Google Gemini.
   - `TESSERACT_CMD`: (Optional) Full path to `tesseract.exe` if not in PATH.
 - **Dependencies**: Listed in `requirements.txt`.
 
-## 6. Development Instructions for Agents
+## 7. Development Instructions for Agents
 - Keep code simple and modular.
 - Use `try-except` blocks for robustness.
 - Do not overcomplicate the image processing (start with standard adaptive thresholding).
 - Ensure the LLM prompt enforces strictly valid JSON.
-

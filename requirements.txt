@@ -1,8 +1,7 @@
 opencv-python
 pytesseract
-google-generativeai
+google-genai
 python-dotenv
 numpy
 jupyter
 ipykernel
-
