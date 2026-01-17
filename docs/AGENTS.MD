@@ -62,12 +62,12 @@ The project is modularized into specific functional files:
 ## 4. Common Utilities
 
 ### `logger.py`
-- **Purpose**: Lightweight logging utility.
+- **Purpose**: Lightweight stdout logger.
 - **Usage**:
-  - Instantiate with the source filename (string) at the top of each module.
-  - Methods (e.g., `log`, `error`) accept message and function name; prints to stdout.
-  - Output format: `timestamp\t-\t{message}\t-\t{function}@{file}`.
-  - Additional log levels/methods can be added later as needed.
+  - Instantiate with no arguments at the top of a module: `logger = Logger()`.
+  - Use `logger.debug(msg)` or `logger.info(msg)`; logger auto-captures caller function and source filename.
+  - Output format: `[YYYY-MM-DD HH:MM:SS]\t\t[LEVEL]\t\tfunction()@source_filename\t\tmessage`.
+  - Extendable with more levels/methods if needed.
 
 ## 5. Output Data Model
 The output must be a JSON object with this exact structure:
