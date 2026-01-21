@@ -18,7 +18,7 @@ class Preprocessor:
     DEFAULT_CLAHE = False
     DEFAULT_INVERT = False
 
-    OUTPUT_PATH = "../outputs/preprocessed_images/"
+    OUTPUT_PATH = "./outputs/preprocessed_images/"
 
     # Initialize Logger
     logger = Logger()
