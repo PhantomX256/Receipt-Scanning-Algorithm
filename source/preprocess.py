@@ -19,6 +19,7 @@ class Preprocessor:
     DEFAULT_MAX_DIM = 1800
     DEFAULT_CLAHE = False
     DEFAULT_INVERT = False
+    DEFAULT_MORPH = False
 
     OUTPUT_PATH = "./outputs/preprocessed_images/"
 
@@ -26,10 +27,11 @@ class Preprocessor:
     logger = Logger()
 
 
-    def __init__(self, max_dim: int=DEFAULT_MAX_DIM, clahe: bool=DEFAULT_CLAHE, invert: bool=DEFAULT_INVERT):
+    def __init__(self, max_dim: int=DEFAULT_MAX_DIM, clahe: bool=DEFAULT_CLAHE, invert: bool=DEFAULT_INVERT, morph: bool=DEFAULT_MORPH):
         self.max_dim = max_dim
         self.clahe = clahe
         self.invert = invert
+        self.morph = morph
 
 
     # Private method that caps dimensions
@@ -130,10 +132,6 @@ class Preprocessor:
             preprocessed_image = self.__convert_to_gray(preprocessed_image)
             self.logger.info("Image converted to grayscale")
 
-        cv2.imshow("Preprocessed Image", preprocessed_image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-
         # Apply Gaussian Blur
         preprocessed_image = self.__apply_gaussian_blur(preprocessed_image)
         self.logger.info("Gaussian Blur Applied")
@@ -142,6 +140,7 @@ class Preprocessor:
         if self.clahe:
             preprocessed_image = self.__apply_clahe(preprocessed_image)
             self.logger.info("CLAHE Applied")
+
 
         # Apply adaptive thresholding
         preprocessed_image = self.__apply_adaptive_threshold(preprocessed_image)
@@ -152,9 +151,9 @@ class Preprocessor:
             preprocessed_image = cv2.bitwise_not(preprocessed_image)
             self.logger.info("Invert Applied")
 
-        # Apply Morphological Open and Close
-        preprocessed_image = self.__apply_morphology(preprocessed_image)
-        self.logger.info("Morphology Applied")
+        if self.morph:
+            preprocessed_image = self.__apply_morphology(preprocessed_image)
+            self.logger.info("Morphology Applied")
 
         # Save Preprocessed image to path
         os.makedirs(self.OUTPUT_PATH, exist_ok=True)
