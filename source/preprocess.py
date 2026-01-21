@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 
 from utils.logger import Logger
+from utils.timer import timer
+from rembg import remove
 
 
 class Preprocessor:
@@ -24,7 +26,6 @@ class Preprocessor:
     logger = Logger()
 
 
-    # Constructor to initialize kwargs
     def __init__(self, max_dim: int=DEFAULT_MAX_DIM, clahe: bool=DEFAULT_CLAHE, invert: bool=DEFAULT_INVERT):
         self.max_dim = max_dim
         self.clahe = clahe
@@ -47,6 +48,16 @@ class Preprocessor:
 
         return image
 
+
+    # Private method to convert to 1 channel grayscale
+    def __convert_to_gray(self, image):
+        b, g, r, a = cv2.split(image)
+
+        alpha_factor = a.astype(float) / 255.0
+
+        composite = (b.astype(float) * alpha_factor) + (255.0 * (1.0 - alpha_factor))
+
+        return composite.astype(np.uint8)
 
     # Private method that loads the input image and caps it at max_dim
     def  __load_image(self, image_path: str) -> np.ndarray:
@@ -104,11 +115,24 @@ class Preprocessor:
 
 
     # Main public function that runs the preprocess pipeline
+    @timer
     def run_preprocess(self, image_path: str) -> np.ndarray:
 
         # Load the image in grayscale
         preprocessed_image = self.__load_image(image_path)
         self.logger.info("Loaded Input Image")
+
+        # Remove Background from image
+        preprocessed_image = remove(preprocessed_image)
+        self.logger.info("Removed Background")
+
+        if preprocessed_image.shape[2] == 4:
+            preprocessed_image = self.__convert_to_gray(preprocessed_image)
+            self.logger.info("Image converted to grayscale")
+
+        cv2.imshow("Preprocessed Image", preprocessed_image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
         # Apply Gaussian Blur
         preprocessed_image = self.__apply_gaussian_blur(preprocessed_image)
