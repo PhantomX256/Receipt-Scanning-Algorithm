@@ -1,17 +1,17 @@
 # Receipt Scanning Pipeline - Agent Context & Specifications
 
 ## 1. Project Overview
-This project is a Python-based receipt scanning pipeline. It takes an input image of a receipt, preprocesses it, extracts text using Tesseract OCR, and parses the text into structured JSON using the Google Gemini API (LLM).
+This project is a Python-based receipt scanning pipeline. It takes an input image of a receipt, preprocesses it (optionally cropping or removing background), extracts text using Tesseract OCR, and parses the text into structured JSON using the Google Gemini API (LLM).
 
 **Goal**: Convert receipt images into structured data (Merchant, Date, Items, Tax, Total) for free, using local OCR and the Gemini Flash API.
 
 ## 2. Technical Stack
 - **Language**: Python 3.x
-- **Computer Vision**: OpenCV (`cv2`)
+- **Computer Vision**: OpenCV (`cv2`), `rembg` (Background removal)
 - **OCR Engine**: Tesseract (`pytesseract`)
   - *Note*: Tesseract binary must be installed on the system.
 - **LLM**: Google Gemini (`google-genai`)
-  - Model: `gemini-3-flash` (fallback: `gemini-1.5-flash` if 3.x not available).
+  - Model: `gemini-3-flash` (fallback: `gemini-1.5-flash`).
 - **Environment**: VS Code / Jupyter Notebook
 - **OS**: Windows
 
@@ -19,83 +19,99 @@ This project is a Python-based receipt scanning pipeline. It takes an input imag
 
 The project is modularized into specific functional files:
 
-### `preprocess.py`
-- **Purpose**: Prepare the image for OCR.
-- **Function**: `run_preprocess(input_image)`
-- **Logic (fast path)**:
-  - Load image (path or array) and optionally cap max dimension to control size/performance.
-  - Convert to Grayscale.
-  - Apply mild Gaussian Blur (noise reduction).
-  - Optionally apply CLAHE (local contrast) when lighting is uneven.
-  - Apply Adaptive Thresholding (binarization), invert if needed for dark text on light background.
-  - Apply light morphological clean-up (e.g., open/close) to remove specks and join thin strokes.
-  - Return: The processed image (numpy array).
-
-### `ocr.py`
-- **Purpose**: Extract raw text from the image.
-- **Function**: `run_ocr(processed_image)`
+### `source/crop.py`
+- **Purpose**: Detect and crop the receipt document from a background.
+- **Class**: `CropPipeline`
+- **Method**: `crop_image(image_path)`
 - **Logic**:
-  - Check for `TESSERACT_CMD` in environment variables.
-  - Configure Tesseract (PSM 6 - Single uniform block of text).
-  - Run `image_to_string`.
+  - Load and resize image (target dim: 1080).
+  - Remove background using `rembg` (optional/experimental step in pipeline) or GrabCut logic (commented/implemented methods).
+  - Detect edges (Canny), contours, and approximate corners.
+  - Apply Perspective Transform to flatten the document.
+  - Save cropped image to `outputs/cropped_images/`.
+
+### `source/preprocess.py`
+- **Purpose**: Prepare the image for OCR to maximize accuracy.
+- **Class**: `Preprocessor`
+- **Method**: `run_preprocess(image_path)`
+- **Logic**:
+  - Load image using `cv2`.
+  - Remove background using `rembg`.
+  - Convert to Grayscale (handles RGBA/Alpha channel manually).
+  - Apply Gaussian Blur (noise reduction).
+  - Optionally apply CLAHE (Contrast Limited Adaptive Histogram Equalization).
+  - Apply Adaptive Thresholding (binarization).
+  - Invert colors if needed.
+  - Optionally apply morphological operations (Open/Close).
+  - Save processed image to `outputs/preprocessed_images/`.
+
+### `source/ocr.py`
+- **Purpose**: Extract raw text from the image.
+- **Class**: `OCREngine`
+- **Method**: `run_ocr(image, input_image_path)`
+- **Logic**:
+  - Check for `TESSERACT_CMD` environment variable.
+  - Configure Tesseract (PSM 6, specific whitelist characters).
+  - Execute `pytesseract.image_to_string`.
+  - Save raw text to `outputs/ocr_text/<filename>.txt`.
   - Return: Raw extracted string.
 
-### `parser.py`
-- **Purpose**: Structure the raw text into JSON.
-- **Function**: `extract_receipt_info(ocr_text, model_name)`
-- **Logic**:
-  - Initialize Gemini API with `GEMINI_API_KEY`.
-  - Construct a prompt including the OCR text and schema requirements.
-  - Request JSON response.
-  - Clean and parse JSON.
-  - Return: Dictionary object.
+### `source/parser.py`
+- **Purpose**: Structure the raw text into JSON using LLM.
+- **Class**: `Parser`
+- **Status**: **Skeleton / Pending Implementation**.
+- **Method**: `parse_text(ocr_text)`
+- **Intended Logic**:
+  - Send OCR text to Gemini API.
+  - Clean and validate JSON response against schema.
 
 ### `main.ipynb` (Orchestrator)
-- **Purpose**: User interface to run the pipeline.
+- **Purpose**: User interface/Script to run the pipeline.
 - **Steps**:
-  1. Define Image Path.
-  2. Call `run_preprocess`.
-  3. Call `run_ocr`.
-  4. Call `extract_receipt_info` (default model `gemini-3-flash`).
-  5. Display/Save results as `outputs/<image_basename>.json`.
+  1. Import `Preprocessor` and `OCREngine`.
+  2. Initialize instances.
+  3. Define input image path.
+  4. Run `preprocessor.run_preprocess()`.
+  5. Run `ocr_engine.run_ocr()`.
 
 ## 4. Common Utilities
 
-### `logger.py`
+### `utils/logger.py`
 - **Purpose**: Lightweight stdout logger.
-- **Usage**:
-  - Instantiate with no arguments at the top of a module: `logger = Logger()`.
-  - Use `logger.debug(msg)` or `logger.info(msg)`; logger auto-captures caller function and source filename.
-  - Output format: `[YYYY-MM-DD HH:MM:SS]\t\t[LEVEL]\t\tfunction()@source_filename\t\tmessage`.
-  - Extendable with more levels/methods if needed.
+- **Class**: `Logger`
+- **Usage**: `logger.info("msg")`, `logger.debug("msg")`.
+- **Features**: Semantic timestamping, caller function detection, source filename tracking.
+
+### `utils/timer.py`
+- **Purpose**: Performance monitoring decorator.
+- **Decorator**: `@timer`
+- **Usage**: Decorate functions to log their execution time automatically using the Logger.
 
 ## 5. Output Data Model
-The output must be a JSON object with this exact structure:
-
+(Planned for `parser.py`)
 ```json
 {
-  "merchant_name": "String (e.g., Walmart)",
+  "merchant_name": "String",
   "date": "String (YYYY-MM-DD)",
   "items": [
     {
       "item_name": "String",
-      "quantity": "Number (default 1)",
+      "quantity": "Number",
       "price": "Number"
     }
   ],
-  "tax_percentage": "Number (null if not found)",
-  "final_total": "Number (inclusive of tax)"
+  "tax_percentage": "Number",
+  "final_total": "Number"
 }
 ```
 
 ## 6. Configuration
 - **Environment Variables** (`.env`):
   - `GEMINI_API_KEY`: API key for Google Gemini.
-  - `TESSERACT_CMD`: (Optional) Full path to `tesseract.exe` if not in PATH.
+  - `TESSERACT_CMD`: Full path to `tesseract.exe`.
 - **Dependencies**: Listed in `requirements.txt`.
 
-## 7. Development Instructions for Agents
-- Keep code simple and modular.
-- Use `try-except` blocks for robustness.
-- Do not overcomplicate the image processing (start with standard adaptive thresholding).
-- Ensure the LLM prompt enforces strictly valid JSON.
+## 7. Development Instructions
+- Use the `Logger` for all console output.
+- Validate changes using `get_errors`.
+- `parser.py` needs to be implemented to connect to Gemini.

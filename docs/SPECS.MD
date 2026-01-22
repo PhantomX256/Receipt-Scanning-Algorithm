@@ -1,13 +1,13 @@
 # Receipt Scanning Pipeline - Specifications
 
 ## 1. Project Overview
-This project is a Python-based receipt scanning pipeline. It takes an input image of a receipt, preprocesses it, extracts text using Tesseract OCR, and parses the text into structured JSON using the Google Gemini API (LLM).
+This project is a Python-based receipt scanning pipeline. It takes an input image of a receipt, preprocesses it (optionally cropping or removing background), extracts text using Tesseract OCR, and parses the text into structured JSON using the Google Gemini API (LLM).
 
 **Goal**: Convert receipt images into structured data (Merchant, Date, Items, Tax, Total) for free, using local OCR and the Gemini Flash API.
 
 ## 2. Technical Stack
 - **Language**: Python 3.x
-- **Computer Vision**: OpenCV (`cv2`)
+- **Computer Vision**: OpenCV (`cv2`), `rembg` (Background removal)
 - **OCR Engine**: Tesseract (`pytesseract`)
   - *Note*: Tesseract binary must be installed on the system.
 - **LLM**: Google Gemini (`google-genai`)
@@ -19,30 +19,47 @@ This project is a Python-based receipt scanning pipeline. It takes an input imag
 
 The project is modularized into specific functional files:
 
-### `preprocess.py`
-- **Purpose**: Prepare the image for OCR.
-- **Function**: `run_preprocess(input_image)`
-- **Logic (fast path)**:
-  - Load image (path or array) and optionally cap max dimension to control size/performance.
-  - Convert to Grayscale.
-  - Apply mild Gaussian Blur (noise reduction).
-  - Optionally apply CLAHE (local contrast) when lighting is uneven.
-  - Apply Adaptive Thresholding (binarization), invert if needed for dark text on light background.
-  - Apply light morphological clean-up (e.g., open/close) to remove specks and join thin strokes.
-  - Return: The processed image (numpy array).
+### `source/crop.py`
+- **Purpose**: Detect and crop the receipt document from a background.
+- **Class**: `CropPipeline`
+- **Method**: `crop_image(image_path)`
+- **Logic**:
+  - Load and resize image (target dim: 1080).
+  - Remove background using `rembg`.
+  - Detect edges (Canny), contours, and approximate corners.
+  - Apply Perspective Transform to flatten the document.
+  - Save cropped image to `outputs/cropped_images/`.
 
-### `ocr.py`
+### `source/preprocess.py`
+- **Purpose**: Prepare the image for OCR to maximize accuracy.
+- **Class**: `Preprocessor`
+- **Method**: `run_preprocess(image_path)`
+- **Logic**:
+  - Load image using `cv2` (handles alpha channel if present).
+  - Remove background using `rembg`.
+  - Convert to Grayscale.
+  - Apply Gaussian Blur (noise reduction).
+  - Optionally apply CLAHE (local contrast) when lighting is uneven.
+  - Apply Adaptive Thresholding (binarization), invert if needed.
+  - Optionally apply morphological clean-up (open/close).
+  - Save processed image to `outputs/preprocessed_images/`.
+
+### `source/ocr.py`
 - **Purpose**: Extract raw text from the image.
-- **Function**: `run_ocr(processed_image)`
+- **Class**: `OCREngine`
+- **Method**: `run_ocr(image, input_image_path)`
 - **Logic**:
   - Check for `TESSERACT_CMD` in environment variables.
   - Configure Tesseract (PSM 6 - Single uniform block of text).
   - Run `image_to_string`.
+  - Save raw text to `outputs/ocr_text/`.
   - Return: Raw extracted string.
 
-### `parser.py`
-- **Purpose**: Structure the raw text into JSON.
-- **Function**: `extract_receipt_info(ocr_text, model_name)`
+### `source/parser.py`
+- **Purpose**: Structure the raw text into JSON using LLM.
+- **Class**: `Parser`
+- **Status**: **Skeleton / Pending Implementation**.
+- **Method**: `parse_text(ocr_text)`
 - **Logic**:
   - Initialize Gemini API with `GEMINI_API_KEY`.
   - Construct a prompt including the OCR text and schema requirements.
@@ -53,21 +70,25 @@ The project is modularized into specific functional files:
 ### `main.ipynb` (Orchestrator)
 - **Purpose**: User interface to run the pipeline.
 - **Steps**:
-  1. Define Image Path.
-  2. Call `run_preprocess`.
-  3. Call `run_ocr`.
-  4. Call `extract_receipt_info` (default model `gemini-3-flash`).
-  5. Display/Save results as `outputs/<image_basename>.json`.
+  1. Import `Preprocessor` and `OCREngine`.
+  2. Initialize instances.
+  3. Define input image path.
+  4. Run `preprocessor.run_preprocess()`.
+  5. Run `ocr_engine.run_ocr()`.
 
 ## 4. Common Utilities
 
-### `logger.py`
+### `utils/logger.py`
 - **Purpose**: Lightweight stdout logger.
+- **Class**: `Logger`
 - **Usage**:
-  - Instantiate with no arguments at the top of a module: `logger = Logger()`.
-  - Use `logger.debug(msg)` or `logger.info(msg)`; logger auto-captures caller function and source filename.
-  - Output format: `[YYYY-MM-DD HH:MM:SS]\t\t[LEVEL]\t\tfunction()@source_filename\t\tmessage`.
-  - Extendable with more levels/methods if needed.
+  - Instantiate `logger = Logger()`.
+  - Use `logger.debug(msg)` or `logger.info(msg)`.
+  - Logger auto-captures caller function and source filename.
+
+### `utils/timer.py`
+- **Purpose**: Performance monitoring decorator.
+- **Usage**: Decorate functions with `@timer` to log execution time.
 
 ## 5. Output Data Model
 The output must be a JSON object with this exact structure:
@@ -91,5 +112,5 @@ The output must be a JSON object with this exact structure:
 ## 6. Configuration
 - **Environment Variables** (`.env`):
   - `GEMINI_API_KEY`: API key for Google Gemini.
-  - `TESSERACT_CMD`: (Optional) Full path to `tesseract.exe` if not in PATH.
+  - `TESSERACT_CMD`: Full path to `tesseract.exe`.
 - **Dependencies**: Listed in `requirements.txt`.

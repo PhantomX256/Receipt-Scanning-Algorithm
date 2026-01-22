@@ -10,9 +10,9 @@ from utils.timer import timer
 
 class CropPipeline:
     """
-        A pipeline to detect a document (receipt) in an image using edge detection
-        and contour finding, then applying a perspective transform to obtain
-        a top-down 'scanned' view of the document.
+    A pipeline to detect a document (receipt) in an image using edge detection
+    and contour finding, then applying a perspective transform to obtain
+    a top-down 'scanned' view of the document.
     """
     TARGET_DIM = 1080
     OUTPUT_PATH = "./outputs/cropped_images/"
