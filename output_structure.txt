@@ -1,0 +1,11 @@
+{
+    merchant_name(string): Name of the merchant or store,
+    date(YYYY-MM-DD): Date of purchase or receipt,
+    items(array of objects) : [{
+        name(string): Name of item,
+        quantity(int): Quantity of the item,
+        price(float): Price of a single item,
+    }],
+    total_price(float): Total bill amount, this includes tax don't include currency symbol,
+    tax_percentage(float): Tax percentage amount
+}
