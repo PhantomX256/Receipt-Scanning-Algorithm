@@ -1,11 +1,16 @@
 {
-    merchant_name(string): Name of the merchant or store,
-    date(YYYY-MM-DD): Date of purchase or receipt,
-    items(array of objects) : [{
-        name(string): Name of item,
-        quantity(int): Quantity of the item,
-        price(float): Price of a single item,
-    }],
-    total_price(float): Total bill amount, this includes tax don't include currency symbol,
-    tax_percentage(float): Tax percentage amount
+  "merchant_name": "String (name of merchant/store, or null if not found)",
+  "date": "String (YYYY-MM-DD format, or null if not found)",
+
+  "items": [
+    {
+      "name": "String (item name/menu item; exclude tips, suggested tips, gratuity, service charges, discounts/coupons/promos, and other non-item lines)",
+      "quantity": "Integer (defaults to 1 if not explicitly specified)",
+      "price_per_unit": "Float (unit price; null if not found)",
+      "total_price": "Float (line total for this item line; null if not found)"
+    }
+  ],
+
+  "total_price": "Float (grand total / final amount due including tax; no currency symbol; null if not found)",
+  "tax_percentage": "Float (effective combined tax rate as a percentage; may be inferred; null if not found)"
 }

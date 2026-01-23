@@ -21,22 +21,56 @@ class Parser:
     STRUCTURE_FILE_PATH = "output_structure.txt"
     OUTPUT_PATH = "./outputs/json/"
     PROMPT_TEMPLATE = """
-    You are an expert receipt parsing agent. Your task is to extract structured data from the raw OCR text of a receipt.
+    You are an information extraction system. Your task is to extract structured receipt data from noisy OCR text.
 
-    STRICTLY follow the structure defined below for your output:
-
-    {structure_content}
-
-    Instructions:
-    1. Analyze the OCR Text below.
-    2. Correct common OCR mistakes based on context (e.g., 'S' -> '5', 'O' -> '0').
-    3. **Graceful Handling**: Try your best to logically infer information. If a specific field cannot be found or inferred with confidence, strictly return `null` for that field. Do not makeup data.
-    4. Return ONLY the JSON object. Do not include markdown formatting.
-
-    OCR Text:
-    '''
-    {ocr_text}
-    '''
+    Return ONLY valid JSON that conforms exactly to the provided schema. Do not include markdown, explanations, or additional keys.
+    
+    IMPORTANT RULES:
+    - Be conservative: do not invent data. Use null for any field you cannot infer with high confidence.
+    - Correct common OCR mistakes when obvious (e.g., O→0, S→5, B→8, missing decimal points).
+    - All currency values must be numbers only (no $ signs). Use decimals when applicable.
+    - If quantity is not explicitly shown for an item, set quantity to 1.
+    - Items must represent PURCHASED products/menu items only.
+    
+    EXCLUDE these lines from items (do NOT include them as items):
+    - tips / suggested tips / gratuity / service charge / delivery fee
+    - discounts / coupons / promotions / savings (including negative-priced lines)
+    - payment lines (cash, card, VISA, Mastercard, change due)
+    - store headers/footers, addresses, phone numbers, transaction ids, cashier ids
+    - tax lines (tax is captured separately)
+    
+    ITEM PRICING REQUIREMENTS:
+    - Each item must include:
+      - price_per_unit: the unit price when available
+      - total_price: the line total for that item line when available
+    - If the OCR shows patterns like "2 @ 1.50 3.00" or "2x 1.50 = 3.00":
+      - quantity = 2
+      - price_per_unit = 1.50
+      - total_price = 3.00
+    - If only a single price is present on an item line and quantity is 1, it is acceptable to set:
+      - price_per_unit = that price
+      - total_price = that same price
+    - If you cannot determine one of price_per_unit or total_price, set that field to null (do not guess).
+    
+    TOTAL AND TAX REQUIREMENTS:
+    - total_price at the root level must be the GRAND TOTAL / final amount due (including tax).
+      Prefer labels like: GRAND TOTAL, TOTAL DUE, AMOUNT DUE, BALANCE DUE, TOTAL.
+    - tax_percentage must be the effective combined tax rate (percentage).
+      - If multiple taxes exist, sum the tax amounts and infer ONE effective percentage when possible.
+      - If an explicit percentage is printed, you may use it.
+      - If you cannot infer a reliable percentage, set tax_percentage to null.
+    
+    DATE REQUIREMENTS:
+    - date must be formatted as YYYY-MM-DD.
+    - If the date cannot be confidently determined, return null.
+    
+    SCHEMA (must match exactly):
+    {STRUCTURE_SCHEMA}
+    
+    OCR TEXT:
+    ```
+    {OCR_TEXT}
+    ```
     """
     SAFETY_SETTINGS = [
         types.SafetySetting(
