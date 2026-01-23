@@ -34,8 +34,12 @@ class Preprocessor:
         self.morph = morph
 
 
-    # Private method that caps dimensions
     def __cap_image_dim(self, image: np.ndarray) -> np.ndarray:
+        """
+        Takes an image and caps the maximum dimension of it
+        :param image:
+        :return:
+        """
 
         # Get Dimensions
         height, width = image.shape[:2]
@@ -51,34 +55,50 @@ class Preprocessor:
         return image
 
 
-    # Private method to convert to 1 channel grayscale
     def __convert_to_gray(self, image):
+        """
+        Takes a 4-channel image (RGBA) and makes it grayscale or single-channel
+        :param image:
+        :return:
+        """
         b, g, r, a = cv2.split(image)
-
         alpha_factor = a.astype(float) / 255.0
-
         composite = (b.astype(float) * alpha_factor) + (255.0 * (1.0 - alpha_factor))
-
         return composite.astype(np.uint8)
 
-    # Private method that loads the input image and caps it at max_dim
+
     def  __load_image(self, image_path: str) -> np.ndarray:
+        """
+        Loads an image from path and caps its dimensions
+        :param image_path:
+        :return:
+        """
 
         # Load the input image in grayscale from path using OpenCV
         loaded_image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+
+        # Cap the image
         return self.__cap_image_dim(loaded_image)
 
 
-    # Private method that applies gaussian blur to the image
     def __apply_gaussian_blur(self, image: np.ndarray) -> np.ndarray:
+        """
+        Applies gaussian Blur
+        :param image:
+        :return:
+        """
 
         # Apply Blur
         blurred_image = cv2.GaussianBlur(image, (3, 3), 0)
         return blurred_image
 
 
-    # Private method that applies CLAHE to the image
     def __apply_clahe(self, image: np.ndarray) -> np.ndarray:
+        """
+        Applies CLAHE
+        :param image:
+        :return:
+        """
 
         # Create CLAHE
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
@@ -87,8 +107,12 @@ class Preprocessor:
         return clahe.apply(image)
 
 
-    # Private method that applies adaptive thresholding
     def __apply_adaptive_threshold(self, image: np.ndarray) -> np.ndarray:
+        """
+        Applies Adaptive Threshold
+        :param image:
+        :return:
+        """
 
         # Binarize using adaptive Gaussian thresholding for uneven lighting
         return cv2.adaptiveThreshold(
@@ -101,8 +125,12 @@ class Preprocessor:
         )
 
 
-    # Private method that applies morphological open and close
     def __apply_morphology(self, image: np.ndarray) -> np.ndarray:
+        """
+        Applies morph both open and close
+        :param image:
+        :return:
+        """
 
         # Initialize kernel
         kernel = np.ones((2, 2), np.uint8)
@@ -116,9 +144,13 @@ class Preprocessor:
         return closed
 
 
-    # Main public function that runs the preprocess pipeline
     @timer
     def run_preprocess(self, image_path: str) -> np.ndarray:
+        """
+        Runs an image through the preprocessing pipeline
+        :param image_path:
+        :return:
+        """
 
         # Load the image in grayscale
         preprocessed_image = self.__load_image(image_path)

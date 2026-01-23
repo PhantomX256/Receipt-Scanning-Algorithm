@@ -1,12 +1,14 @@
 import json
 import os
 
-from utils.logger import Logger
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from utils.logger import Logger
+
 load_dotenv()
+
 
 class Parser:
     """
@@ -28,7 +30,7 @@ class Parser:
     Instructions:
     1. Analyze the OCR Text below.
     2. Correct common OCR mistakes based on context (e.g., 'S' -> '5', 'O' -> '0').
-    3. **Graceful Handling**: Try your best to logically infer information. If a specific field cannot be found or inferred with confidence, strictly return `null` (or None) for that field. Do not makeup data.
+    3. **Graceful Handling**: Try your best to logically infer information. If a specific field cannot be found or inferred with confidence, strictly return `null` for that field. Do not makeup data.
     4. Return ONLY the JSON object. Do not include markdown formatting.
 
     OCR Text:
@@ -36,13 +38,36 @@ class Parser:
     {ocr_text}
     '''
     """
+    SAFETY_SETTINGS = [
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE
+        ),
+        types.SafetySetting(
+            category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold=types.HarmBlockThreshold.BLOCK_NONE
+        )
+    ]
+    GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        max_output_tokens=8192,
+        temperature=0.1,
+        safety_settings=SAFETY_SETTINGS
+    )
 
     # Initialize Logger
     logger = Logger()
 
     # Initialize client
     client = genai.Client(api_key=GEMINI_API_KEY)
-
 
     def __get_structure(self) -> str:
         """
@@ -51,7 +76,6 @@ class Parser:
         """
         with open(self.STRUCTURE_FILE_PATH, 'r', encoding='utf-8') as file:
             return file.read()
-
 
     def __save_json(self, json_output: dict, input_image_path: str) -> None:
         """
@@ -68,7 +92,6 @@ class Parser:
         # Save the json
         with open(save_path, 'w', encoding='utf-8') as f:
             json.dump(json_output, f, indent=4)
-
 
     def parse_text(self, ocr_text: str, input_image_path: str) -> dict:
         """
@@ -89,16 +112,16 @@ class Parser:
             response = self.client.models.generate_content(
                 model=self.MODEL_ID,
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    max_output_tokens=2000,
-                    temperature=0.1
-                )
+                config=self.GENERATE_CONTENT_CONFIG,
             )
 
             # If no response is received
             if not response.text:
                 raise ValueError("Received an empty response")
+
+            self.logger.info("Received a response from Gemini. Parsing...")
+
+            # print(response)
 
             # Parse the json from text
             parsed_json = json.loads(response.text)
