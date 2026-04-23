@@ -1,238 +1,181 @@
-# 🧾 Receipt Scanning Algorithm
+# Receipt Scanning Pipeline
 
-A Python-based receipt scanning pipeline that converts receipt images into structured JSON data using OCR and LLM technology.
+This project converts receipt images into structured JSON using a local OCR-plus-LLM workflow.
 
-## 📋 Overview
+The current implementation uses:
 
-This project processes receipt images through a multi-stage pipeline:
-1. **Preprocessing** - Cleans and enhances images for optimal OCR performance
-2. **OCR Extraction** - Extracts raw text using Tesseract OCR
-3. **LLM Parsing** - Structures the text into JSON using Google Gemini AI
+1. Document detection and perspective correction with `processor.scan.DocScanner`
+2. OCR extraction with Surya
+3. Receipt text reconstruction from OCR bounding boxes
+4. Structured parsing with a local Ollama-hosted Gemma model
 
-**Result**: Clean, structured data containing merchant name, date, items, prices, tax, and totals.
+The result is a JSON file containing receipt fields such as store name, date, line items, subtotal, tax, and total.
 
-## ✨ Features
+## Overview
 
-- 🖼️ **Image Preprocessing** - Background removal, contrast enhancement, noise reduction, and binarization
-- 📐 **Document Cropping** - Automatic receipt detection and perspective correction (optional)
-- 🔍 **OCR Extraction** - Tesseract-based text extraction with custom configurations
-- 🤖 **AI Parsing** - Google Gemini LLM converts messy OCR text into clean JSON
-- 🛡️ **Graceful Degradation** - Returns `null` for fields that cannot be extracted with confidence
-- 📊 **Structured Output** - Consistent JSON format for easy integration
+The notebook entry point is `main.ipynb`. A typical run performs the following steps:
 
-## 🚀 Quick Start
+1. Load a receipt image from `dataset/images/`
+2. Crop and deskew the receipt using `DocScanner`
+3. Run Surya OCR and save the raw OCR output to `output/ocr/`
+4. Reconstruct receipt text using OCR line bounding boxes
+5. Send the reconstructed text to Ollama with `gemma4:e4b`
+6. Validate and save the final structured result to `output/json/`
 
-### Prerequisites
+## Features
 
-1. **Python 3.x** installed
-2. **Tesseract OCR** installed on your system
-   - Download: https://github.com/tesseract-ocr/tesseract
-   - Windows: Install and note the installation path (e.g., `C:\Program Files\Tesseract-OCR\tesseract.exe`)
-3. **Google Gemini API Key**
-   - Get one at: https://ai.google.dev/
+- Receipt detection and perspective correction
+- OCR output preservation for debugging and traceability
+- Layout-aware reconstruction of OCR text before LLM parsing
+- Local LLM parsing through Ollama
+- JSON validation using a typed schema
+- Per-receipt outputs stored in predictable folders
 
-### Installation
+## Requirements
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd "Receipt Scanning Algorithm"
-   ```
+- Python 3.10 or later is recommended
+- macOS users may need Qt support for the interactive cropping window
+- Ollama installed locally
+- The `gemma4:e4b` model pulled into Ollama
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+If you are using the interactive crop window in Jupyter, make sure the Qt backend is available in your environment.
 
-3. **Configure environment variables**
-   
-   Create a `.env` file in the project root:
-   ```env
-   GEMINI_API_KEY=your_gemini_api_key_here
-   TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
-   ```
+## Installation
 
-### Usage
+1. Clone the repository
 
-1. **Open the Jupyter notebook**
-   ```bash
-   jupyter notebook main.ipynb
-   ```
-
-2. **Set your input image path**
-   ```python
-   input_image_path = "dataset/walmart_receipts/11.jpg"
-   ```
-
-3. **Run all cells sequentially**
-   - The notebook will preprocess, OCR, and parse your receipt
-   - Check the `outputs/` folder for results
-
-## 📁 Project Structure
-
-```
-Receipt Scanning Algorithm/
-├── main.ipynb                 # Main pipeline orchestrator
-├── output_structure.txt       # JSON schema definition
-├── requirements.txt           # Python dependencies
-├── .env                       # Environment variables (create this)
-│
-├── source/                    # Core modules
-│   ├── preprocess.py          # Image preprocessing
-│   ├── ocr.py                 # OCR text extraction
-│   ├── parser.py              # LLM-based JSON parsing
-│   └── crop.py                # Document detection & cropping (optional)
-│
-├── utils/                     # Utility modules
-│   ├── logger.py              # Logging utility
-│   └── timer.py               # Performance timing decorator
-│
-├── dataset/                   # Input receipt images
-│   ├── walmart_receipts/
-│   ├── restaurant_receipts/
-│   └── other_receipts/
-│
-├── outputs/                   # Generated outputs
-│   ├── preprocessed_images/   # Cleaned images ready for OCR
-│   ├── ocr_text/              # Raw text files from Tesseract
-│   └── json/                  # Final structured JSON outputs
-│
-└── docs/                      # Documentation
-    ├── AGENTS.MD              # Technical specifications
-    └── SPECS.MD               # Project specifications
+```bash
+git clone <repository-url>
+cd Receipt-Scanning
 ```
 
-## 🔧 Configuration
+2. Install Python dependencies
 
-### Environment Variables
+```bash
+pip install -r requirements.txt
+```
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `GEMINI_API_KEY` | Google Gemini API key for LLM parsing | `AIzaSy...` |
-| `TESSERACT_CMD` | Full path to Tesseract executable | `C:\Program Files\Tesseract-OCR\tesseract.exe` |
+3. Install or start Ollama
 
-### Preprocessing Options
+```bash
+ollama pull gemma4:e4b
+```
 
-You can customize the `Preprocessor` class with these parameters:
+If the model is already installed, you can verify it with:
+
+```bash
+ollama list
+```
+
+## Usage
+
+### Notebook workflow
+
+Open `main.ipynb` and run the cells in order.
+
+The current pipeline is:
 
 ```python
-preprocessor = Preprocessor(
-    max_dim=1800,      # Maximum image dimension
-    clahe=False,       # Contrast Limited Adaptive Histogram Equalization
-    invert=False,      # Invert black/white (for dark backgrounds)
-    morph=False        # Apply morphological operations
-)
+processed_receipt = scanner.scan(INPUT_IMAGE_PATH)
+formatted_text = run_surya_ocr(processed_receipt, filename)
+final_json = run_receipt_llm_parsing(formatted_text, filename)
 ```
 
-### OCR Configuration
+### Inputs
 
-The OCR engine uses these Tesseract settings:
-- **OEM 1**: LSTM neural net mode
-- **PSM 6**: Assume uniform block of text
-- **Character whitelist**: Letters, numbers, and common receipt symbols
+Place receipt images in `dataset/images/`.
 
-## 📤 Output Format
+### Outputs
 
-The pipeline generates JSON files with this structure:
+Each receipt produces:
 
-```json
-{
-  "merchant_name": "Walmart",
-  "date": "2026-01-15",
-  "items": [
-    {
-      "name": "PLTORTILLAS",
-      "quantity": 1,
-      "price": 6.99
-    },
-    {
-      "name": "CAGEFREEALLWHIT",
-      "quantity": 1,
-      "price": 3.69
-    }
-  ],
-  "total_price": 12.45,
-  "tax_percentage": 8.5
-}
+- `output/processed/<filename>.jpg` - cropped and thresholded receipt image
+- `output/ocr/<filename>.json` - Surya OCR output
+- `output/ocr/<filename>.txt` - reconstructed OCR text
+- `output/json/<filename>.json` - final structured receipt JSON
+
+## Project Structure
+
+```text
+Receipt-Scanning/
+├── main.ipynb
+├── requirements.txt
+├── README.MD
+├── dataset/
+│   └── images/
+├── output/
+│   ├── processed/
+│   ├── ocr/
+│   └── json/
+├── processor/
+│   ├── scan.py
+│   └── polygon_interacter.py
+├── ocr_parser/
+│   ├── parser.py
+│   └── __init__.py
+└── llm_parser/
+    ├── parser.py
+    ├── json_format.py
+    └── __init__.py
 ```
 
-**Note**: Fields will be `null` if the information cannot be extracted with confidence.
+## How It Works
 
-## 📂 Output Locations
+### 1. Document scanning and preprocessing
 
-All outputs are saved in the `outputs/` directory with the same base filename as the input image:
+`processor/scan.py` contains `DocScanner`, which detects the receipt boundary, corrects perspective, and produces a cleaned, thresholded image.
 
-- **Preprocessed Images**: `outputs/preprocessed_images/11.jpg`
-- **OCR Text**: `outputs/ocr_text/11.txt`
-- **JSON Data**: `outputs/json/11.json`
+### 2. OCR extraction
 
-## 🔍 How It Works
+`ocr_parser/parser.py` uses Surya OCR to extract text lines and bounding boxes from the processed receipt image. The raw OCR result is saved as JSON for inspection.
 
-### 1. Image Preprocessing (`source/preprocess.py`)
-- Removes background using ML-based `rembg` library
-- Converts to grayscale and handles alpha channels
-- Applies Gaussian blur for noise reduction
-- Optional CLAHE for contrast enhancement
-- Adaptive thresholding for binarization
-- Optional morphological operations
+### 3. Text reconstruction
 
-### 2. OCR Extraction (`source/ocr.py`)
-- Uses Tesseract OCR with custom configuration
-- Character whitelist for receipt-specific symbols
-- Saves raw text output for debugging
+The OCR JSON is converted into a line-oriented text representation using bounding box coordinates. This preserves layout information that is important for receipts.
 
-### 3. LLM Parsing (`source/parser.py`)
-- Sends OCR text to Google Gemini (`gemini-2.5-flash`)
-- Uses structured prompt with schema definition
-- JSON mode enabled for reliable output
-- Safety filters disabled to handle OCR noise
-- High token limit (8192) for reasoning models
-- Graceful error handling with partial results
+### 4. LLM parsing
 
-## 🛠️ Troubleshooting
+`llm_parser/parser.py` sends the reconstructed OCR text to Ollama using `gemma4:e4b`. The response is validated against the receipt schema defined in `llm_parser/json_format.py` and written to disk as JSON.
 
-### Common Issues
+## JSON Schema
 
-**Issue**: "Tesseract not found"
-- **Solution**: Make sure Tesseract is installed and `TESSERACT_CMD` in `.env` points to the correct path
+The structured receipt output is defined in `llm_parser/json_format.py`. The current schema is intended to represent the following receipt fields:
 
-**Issue**: Empty JSON response from Gemini
-- **Solution**: Check your `GEMINI_API_KEY` in `.env` is valid and has quota remaining
+- store name
+- date
+- list of items
+- subtotal
+- tax
+- total
 
-**Issue**: Incomplete JSON (cuts off mid-generation)
-- **Solution**: Already handled! The code uses `max_output_tokens=8192` to accommodate reasoning tokens
+The LLM output is validated before it is saved.
 
-**Issue**: Poor OCR results
-- **Solution**: 
-  - Try enabling CLAHE: `Preprocessor(clahe=True)`
-  - For dark backgrounds: `Preprocessor(invert=True)`
-  - Ensure input image is clear and well-lit
+## Troubleshooting
 
-## 📊 Performance
+### Ollama model does not load
 
-Typical processing times (may vary based on hardware):
-- **Preprocessing**: 2-5 seconds
-- **OCR Extraction**: 1-3 seconds
-- **LLM Parsing**: 5-15 seconds (depends on API latency)
+- Confirm Ollama is running locally
+- Run `ollama list` to verify `gemma4:e4b` is installed
+- If needed, pull the model again with `ollama pull gemma4:e4b`
 
-**Total**: ~10-25 seconds per receipt
+### OCR output looks incorrect
 
-## 🤝 Contributing
+- Try a clearer input image
+- Use the interactive crop window to adjust the receipt boundary
+- Check the contents of `output/ocr/<filename>.json` and `output/ocr/<filename>.txt`
 
-This is a personal project, but suggestions and improvements are welcome!
+### LLM output is empty or incomplete
 
-## 📄 License
+- Verify that the reconstructed OCR text is not empty
+- Review the prompt used in `llm_parser/parser.py`
+- Confirm the local model is responding correctly through Ollama
 
-This project is provided as-is for educational and personal use.
+## Notes
 
-## 🙏 Acknowledgments
+- This project is designed to run locally.
+- The raw OCR output is kept intentionally so the parsing pipeline is easy to debug.
+- The output format may evolve as the schema in `llm_parser/json_format.py` changes.
 
-- **Tesseract OCR** - Open-source OCR engine
-- **Google Gemini** - AI-powered text parsing
-- **OpenCV** - Image processing
-- **rembg** - ML-based background removal
+## License
 
----
-
-**Last Updated**: January 23, 2026  
-**Status**: ✅ Fully Functional
+This project is provided for educational and personal use.
