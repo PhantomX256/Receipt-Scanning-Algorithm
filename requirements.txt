@@ -1,8 +1,8 @@
-opencv-python
-pytesseract
-google-genai
-python-dotenv
+matplotlib
 numpy
-jupyter
-ipykernel
-rembg
+ocrd-fork-pylsd
+opencv-python
+scipy
+PyQt6
+requests
+surya-ocr
